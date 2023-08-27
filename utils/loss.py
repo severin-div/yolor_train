@@ -127,7 +127,7 @@ def compute_loss(p, targets, model):  # predictions, targets, model
 def build_targets(p, targets, model):
     nt = targets.shape[0]  # number of anchors, targets
     tcls, tbox, indices, anch = [], [], [], []
-    gain = torch.ones(6, device=targets.device)  # normalized to gridspace gain
+    gain = torch.ones(6, device=targets.device).long()  # normalized to gridspace gain
     off = torch.tensor([[1, 0], [0, 1], [-1, 0], [0, -1]], device=targets.device).float()  # overlap offsets
 
     g = 0.5  # offset
@@ -141,14 +141,15 @@ def build_targets(p, targets, model):
         a, t, offsets = [], targets * gain, 0
         if nt:
             na = anchors.shape[0]  # number of anchors
-            at = torch.arange(na).view(na, 1).repeat(1, nt)  # anchor tensor, same as .repeat_interleave(nt)
+            at = torch.arange(na).view(na, 1).repeat(1, nt).to(targets.device)  # anchor tensor, same as .repeat_interleave(nt)
             r = t[None, :, 4:6] / anchors[:, None]  # wh ratio
             j = torch.max(r, 1. / r).max(2)[0] < model.hyp['anchor_t']  # compare
             # j = wh_iou(anchors, t[:, 4:6]) > model.hyp['iou_t']  # iou(3,n) = wh_iou(anchors(3,2), gwh(n,2))
+            j.to(targets.device)
             a, t = at[j], t.repeat(na, 1, 1)[j]  # filter
 
             # overlaps
-            gxy = t[:, 2:4]  # grid xy
+            gxy = t[:, 2:4].long()  # grid xy
             z = torch.zeros_like(gxy)
             j, k = ((gxy % 1. < g) & (gxy > 1.)).T
             l, m = ((gxy % 1. > (1 - g)) & (gxy < (gain[[2, 3]] - 1.))).T
