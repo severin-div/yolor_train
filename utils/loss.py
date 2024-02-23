@@ -144,12 +144,12 @@ def build_targets(p, targets, model):
             at = torch.arange(na).view(na, 1).repeat(1, nt).to(targets.device)  # anchor tensor, same as .repeat_interleave(nt)
             r = t[None, :, 4:6] / anchors[:, None]  # wh ratio
             j = torch.max(r, 1. / r).max(2)[0] < model.hyp['anchor_t']  # compare
-            # j = wh_iou(anchors, t[:, 4:6]) > model.hyp['iou_t']  # iou(3,n) = wh_iou(anchors(3,2), gwh(n,2))
             j.to(targets.device)
+            # j = wh_iou(anchors, t[:, 4:6]) > model.hyp['iou_t']  # iou(3,n) = wh_iou(anchors(3,2), gwh(n,2))
             a, t = at[j], t.repeat(na, 1, 1)[j]  # filter
 
             # overlaps
-            gxy = t[:, 2:4].long()  # grid xy
+            gxy = t[:, 2:4]  # grid xy
             z = torch.zeros_like(gxy)
             j, k = ((gxy % 1. < g) & (gxy > 1.)).T
             l, m = ((gxy % 1. > (1 - g)) & (gxy < (gain[[2, 3]] - 1.))).T
@@ -158,7 +158,7 @@ def build_targets(p, targets, model):
 
         # Define
         b, c = t[:, :2].long().T  # image, class
-        gxy = t[:, 2:4]  # grid xy
+        gxy = t[:, 2:4].float()  # grid xy
         gwh = t[:, 4:6]  # grid wh
         gij = (gxy - offsets).long()
         gi, gj = gij.T  # grid xy indices

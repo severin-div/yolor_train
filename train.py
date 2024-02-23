@@ -31,8 +31,6 @@ from utils.general import labels_to_class_weights, increment_path, labels_to_ima
 from utils.google_utils import attempt_download
 from utils.loss import compute_loss
 from utils.plots import plot_images, plot_labels, plot_results, plot_evolution
-from utils.setup import load_batch_size, load_weights, load_cfg, load_hyp, load_info
-from utils.storage import save_results
 from utils.torch_utils import ModelEMA, select_device, intersect_dicts, torch_distributed_zero_first
 
 logger = logging.getLogger(__name__)
@@ -64,14 +62,14 @@ def train(hyp, opt, device, tb_writer=None, wandb=None):
     # Configure
     plots = not opt.evolve  # create plots
     cuda = device.type != 'cpu'
-    init_seeds(2 + rank)
+    init_seeds(0)
     with open(opt.data) as f:
         data_dict = yaml.load(f, Loader=yaml.FullLoader)  # data dict
     with torch_distributed_zero_first(rank):
         check_dataset(data_dict)  # check
-    train_path = os.path.join(data_dict['folder'], 'images', 'train')
-    test_path = os.path.join(data_dict['folder'], 'images', 'val')
-    nc, names = (1, ['item']) if opt.single_cls else (int(len(data_dict['classes'])), data_dict['classes'])  # number classes, names
+    train_path = data_dict['train']
+    test_path = data_dict['val']
+    nc, names = (1, ['item']) if opt.single_cls else (int(data_dict['nc']), data_dict['names'])  # number classes, names
     assert len(names) == nc, '%g names found for nc=%g dataset in %s' % (len(names), nc, opt.data)  # check
 
     # Model
@@ -230,7 +228,7 @@ def train(hyp, opt, device, tb_writer=None, wandb=None):
                 'Using %g dataloader workers\nLogging results to %s\n'
                 'Starting training for %g epochs...' % (imgsz, imgsz_test, dataloader.num_workers, save_dir, epochs))
     
-    #torch.save(model, wdir / 'init.pt')
+    # torch.save(model, wdir / 'init.pt')
     
     for epoch in range(start_epoch, epochs):  # epoch ------------------------------------------------------------------
         model.train()
@@ -403,30 +401,30 @@ def train(hyp, opt, device, tb_writer=None, wandb=None):
 
                 # Save last, best and delete
                 torch.save(ckpt, last)
-                if best_fitness == fi:
-                    torch.save(ckpt, best)
-                #if (best_fitness == fi) and (epoch >= 200):
-                #    torch.save(ckpt, wdir / 'best_{:03d}.pt'.format(epoch))
-                #if best_fitness == fi:
-                #    torch.save(ckpt, wdir / 'best_overall.pt')
-                #if best_fitness_p == fi_p:
-                #    torch.save(ckpt, wdir / 'best_p.pt')
-                #if best_fitness_r == fi_r:
-                #    torch.save(ckpt, wdir / 'best_r.pt')
-                #if best_fitness_ap50 == fi_ap50:
-                #    torch.save(ckpt, wdir / 'best_ap50.pt')
+                # if best_fitness == fi:
+                #     torch.save(ckpt, best)
+                # if (best_fitness == fi) and (epoch >= 200):
+                #     torch.save(ckpt, wdir / 'best_{:03d}.pt'.format(epoch))
+                # if best_fitness == fi:
+                #     torch.save(ckpt, wdir / 'best_overall.pt')
+                if best_fitness_p == fi_p:
+                    torch.save(ckpt, wdir / 'best_p.pt')
+                # if best_fitness_r == fi_r:
+                #     torch.save(ckpt, wdir / 'best_r.pt')
+                # if best_fitness_ap50 == fi_ap50:
+                #     torch.save(ckpt, wdir / 'best_ap50.pt')
                 if best_fitness_ap == fi_ap:
                     torch.save(ckpt, wdir / 'best_ap.pt')
-                if best_fitness_f == fi_f:
-                    torch.save(ckpt, wdir / 'best_f.pt')
-                #if epoch == 0:
-                #    torch.save(ckpt, wdir / 'epoch_{:03d}.pt'.format(epoch))
-                #if ((epoch+1) % 25) == 0:
-                #    torch.save(ckpt, wdir / 'epoch_{:03d}.pt'.format(epoch))
-                #if epoch >= (epochs-5):
-                #    torch.save(ckpt, wdir / 'last_{:03d}.pt'.format(epoch))
-                #elif epoch >= 420: 
-                #    torch.save(ckpt, wdir / 'last_{:03d}.pt'.format(epoch))
+                # if best_fitness_f == fi_f:
+                #     torch.save(ckpt, wdir / 'best_f.pt')
+                # if epoch == 0:
+                #     torch.save(ckpt, wdir / 'epoch_{:03d}.pt'.format(epoch))
+                if ((epoch+1) % 50) == 0:
+                    torch.save(ckpt, wdir / 'epoch_{:03d}.pt'.format(epoch))
+                # if epoch >= (epochs-5):
+                #     torch.save(ckpt, wdir / 'last_{:03d}.pt'.format(epoch))
+                # elif epoch >= 420:
+                #     torch.save(ckpt, wdir / 'last_{:03d}.pt'.format(epoch))
                 del ckpt
         # end epoch ----------------------------------------------------------------------------------------------------
     # end training
@@ -434,8 +432,8 @@ def train(hyp, opt, device, tb_writer=None, wandb=None):
     if rank in [-1, 0]:
         # Strip optimizers
         n = opt.name if opt.name.isnumeric() else ''
-        fresults, fbest, flast, fbestap, fbestf = save_dir / f'results{n}.txt', wdir / f'best{n}.pt', wdir / f'last{n}.pt', wdir / f'best_ap{n}.pt', wdir / f'best_f{n}.pt'
-        for f1, f2 in zip([wdir / 'best.pt', wdir / 'last.pt', wdir / 'best_ap.pt', wdir / 'best_f.pt', results_file], [fbest, flast, fbestap, fbestf, fresults]):
+        fresults, flast, fbest, fbestap, fbestp = save_dir / f'results{n}.txt', wdir / f'last{n}.pt', wdir / f'best{n}.pt', wdir / f'best_ap.pt', wdir / f'best_p.pt'
+        for f1, f2 in zip([wdir / 'last.pt', wdir / 'best.pt', wdir / 'best_ap.pt', wdir / 'best_p.pt', results_file], [flast, fbest, fbestap, fbestp, fresults]):
             if f1.exists():
                 os.rename(f1, f2)  # rename
                 if str(f2).endswith('.pt'):  # is *.pt
@@ -448,7 +446,6 @@ def train(hyp, opt, device, tb_writer=None, wandb=None):
                 wandb.log({"Results": [wandb.Image(str(save_dir / x), caption=x) for x in
                                        ['results.png', 'precision-recall_curve.png']]})
         logger.info('%g epochs completed in %.3f hours.\n' % (epoch - start_epoch + 1, (time.time() - t0) / 3600))
-        save_results(data_dict['folder'])
     else:
         dist.destroy_process_group()
 
@@ -464,7 +461,7 @@ if __name__ == '__main__':
     parser.add_argument('--data', type=str, default='data/coco.yaml', help='data.yaml path')
     parser.add_argument('--hyp', type=str, default='data/hyp.scratch.1280.yaml', help='hyperparameters path')
     parser.add_argument('--epochs', type=int, default=300)
-    parser.add_argument('--batch-size', type=int, default=4, help='total batch size for all GPUs')
+    parser.add_argument('--batch-size', type=int, default=8, help='total batch size for all GPUs')
     parser.add_argument('--img-size', nargs='+', type=int, default=[1280, 1280], help='[train, test] image sizes')
     parser.add_argument('--rect', action='store_true', help='rectangular training')
     parser.add_argument('--resume', nargs='?', const=True, default=False, help='resume most recent training')
@@ -475,7 +472,7 @@ if __name__ == '__main__':
     parser.add_argument('--bucket', type=str, default='', help='gsutil bucket')
     parser.add_argument('--cache-images', action='store_true', help='cache images for faster training')
     parser.add_argument('--image-weights', action='store_true', help='use weighted image selection for training')
-    parser.add_argument('--device', default='0', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
+    parser.add_argument('--device', default='', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
     parser.add_argument('--multi-scale', action='store_true', help='vary img-size +/- 50%%')
     parser.add_argument('--single-cls', action='store_true', help='train as single-class dataset')
     parser.add_argument('--adam', action='store_true', help='use torch.optim.Adam() optimizer')
@@ -487,17 +484,6 @@ if __name__ == '__main__':
     parser.add_argument('--name', default='exp', help='save to project/name')
     parser.add_argument('--exist-ok', action='store_true', help='existing project/name ok, do not increment')
     opt = parser.parse_args()
-
-    # Load cfg
-    with open(opt.data) as f:
-        data_input = yaml.load(f, Loader=yaml.FullLoader)
-        opt.epochs = data_input['epochs']
-        opt.batch_size = load_batch_size()
-        opt.img_size = data_input['imgsz']
-        opt.cfg = load_cfg(data_input['cfg'])
-        opt.hyp = load_hyp(data_input['imgsz'])
-        opt.weights = load_weights(data_input)
-        load_info(opt)
 
     # Set DDP variables
     opt.total_batch_size = opt.batch_size

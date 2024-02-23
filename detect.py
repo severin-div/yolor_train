@@ -11,7 +11,7 @@ import torch.backends.cudnn as cudnn
 from numpy import random
 
 from utils.google_utils import attempt_load
-# from utils.datasets import LoadStreams, LoadImages
+from utils.datasets import LoadStreams, LoadImages
 from utils.general import (
     check_img_size, non_max_suppression, apply_classifier, scale_coords, xyxy2xywh, strip_optimizer)
 from utils.plots import plot_one_box
@@ -33,8 +33,7 @@ def detect(save_img=False):
     webcam = source == '0' or source.startswith('rtsp') or source.startswith('http') or source.endswith('.txt')
 
     # Initialize
-    device = select_device('cpu')
-    # device = select_device(opt.device)
+    device = select_device(opt.device)
     if os.path.exists(out):
         shutil.rmtree(out)  # delete output folder
     os.makedirs(out)  # make new output folder
